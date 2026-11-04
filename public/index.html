@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NORTH CITY RP | طلب التفعيل</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.4);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #1f293d;
+      --correct: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 20px; line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 30px; padding: 20px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    .header h1 { color: var(--accent); font-size: 2.2rem; font-weight: 800; margin-bottom: 5px; }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 25px; border: 1px solid var(--border); margin-bottom: 25px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text); }
+    .form-group input { width: 100%; padding: 12px 15px; border-radius: 8px; background: #080c14; border: 1px solid var(--border); color: #fff; font-size: 1rem; outline: none; transition: 0.3s; }
+    .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+    .question-card { background: #0d1424; padding: 18px; border-radius: 10px; margin-bottom: 18px; border: 1px solid var(--border); }
+    .question-title { font-weight: 700; margin-bottom: 12px; color: #60a5fa; }
+    .options { display: flex; flex-direction: column; gap: 8px; }
+    .option-label { display: flex; align-items: center; padding: 10px 14px; background: var(--card-bg); border-radius: 6px; cursor: pointer; border: 1px solid var(--border); transition: 0.2s; }
+    .option-label:hover { border-color: var(--accent); }
+    .option-label input { margin-left: 10px; accent-color: var(--accent); }
+    .btn { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: 0.3s; box-shadow: 0 0 15px var(--accent-glow); }
+    .btn:hover { background: #2563eb; transform: translateY(-2px); }
+    .alert { padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; display: none; }
+    .alert-success { background: #064e3b; color: #a7f3d0; border: 1px solid #059669; }
+    .alert-error { background: #7f1d1d; color: #fecaca; border: 1px solid #dc2626; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>NORTH CITY RP</h1>
+      <p>استبيان التفعيل والتقديم الرسمي للمدينة</p>
+    </div>
+
+    <form id="appForm">
+      <div class="card">
+        <div class="form-group">
+          <label>اسم حساب Discord:</label>
+          <input type="text" id="discordName" placeholder="مثال: User#1234 أو username" required>
+        </div>
+        <div class="form-group">
+          <label>اسم شخصية اللعبة (IC):</label>
+          <input type="text" id="gameName" placeholder="مثال: Alex Mason" required>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-bottom: 20px; text-align: center; font-size: 1.4rem;">الأسئلة والضوابط (20 سؤالاً)</h2>
+        <div id="questionsContainer"></div>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">إرسال طلب التفعيل</button>
+      <div id="alertBox" class="alert"></div>
+    </form>
+  </div>
+
+  <script>
+    const QUESTIONS = [
+      { id: 0, q: "ما المقصود بمصطلح Fear RP؟", a: ["التصرف وكأن شخصيتك تخاف على حياتها عند وجود تهديد واقعي", "الهروب من كل موقف", "إطلاق النار دون سبب"] },
+      { id: 1, q: "ما المقصود بـ RDM؟", a: ["دهس المركبات", "قتل لاعب دون سبب أو سيناريو RP", "استخدام الهاتف"] },
+      { id: 2, q: "ما المقصود بـ VDM؟", a: ["استخدام المركبة لقتل أو إيذاء اللاعبين دون RP", "بيع المركبات", "قيادة مركبة حكومية"] },
+      { id: 3, q: "ما معنى Meta Gaming؟", a: ["إصلاح المركبة", "استخدام معلومات من خارج اللعبة داخل RP", "التحدث مع الإدارة"] },
+      { id: 4, q: "ما معنى Power Gaming؟", a: ["فرض أفعال غير منطقية أو حرمان الآخرين من فرصة التفاعل", "شراء منزل", "الالتزام بالوظيفة"] },
+      { id: 5, q: "إذا تعرضت لحادث قوي داخل اللعبة، ماذا تفعل؟", a: ["تتجاهل الحادث دائماً", "تكمل وكأن شيئاً لم يحدث", "تتفاعل مع الحادث بما يناسب الواقعية"] },
+      { id: 6, q: "هل يجوز الخروج من اللعبة لتجنب سيناريو قائم؟", a: ["نعم دائماً", "لا، يجب إكمال السيناريو أو إبلاغ الإدارة عند وجود مشكلة حقيقية", "فقط عند الخسارة"] },
+      { id: 7, q: "ما التصرف الصحيح عند وجود خلاف مع لاعب؟", a: ["تبدأ السب والشتم", "تخرب السيناريو", "تكمل RP وتستخدم نظام الشكاوى عند الحاجة"] },
+      { id: 8, q: "هل يسمح باستخدام معلومات Discord لمعرفة موقع لاعب داخل RP؟", a: ["لا، هذا Meta Gaming", "نعم في كل الحالات", "نعم إذا كان صديقك"] },
+      { id: 9, q: "ماذا تفعل إذا طلب منك لاعب التوقف عن سيناريو بسبب خلل تقني؟", a: ["تستغل الموقف", "تتعاون وتوثق المشكلة ثم تتواصل مع الإدارة", "تتهمه مباشرة"] },
+      { id: 10, q: "ما معنى Combat Logging؟", a: ["تسجيل مقطع", "تغيير السلاح", "الخروج من اللعبة أثناء موقف قتالي أو سيناريو لتجنب نتائجه"] },
+      { id: 11, q: "هل يحق لك إجبار لاعب على تنفيذ فعل دون منحه فرصة للرد؟", a: ["لا، يجب ترك فرصة تفاعل عادلة", "نعم دائماً", "فقط في الأماكن العامة"] },
+      { id: 12, q: "كيف تتصرف عند توقيفك من جهة أمنية داخل RP؟", a: ["تتجاهلهم وتغادر", "تتفاعل مع الموقف وتحافظ على الواقعية", "تخرج من اللعبة"] },
+      { id: 13, q: "هل يجوز استخدام ثغرة للحصول على أموال أو ممتلكات؟", a: ["نعم إذا لم يلاحظ أحد", "نعم مرة واحدة", "لا، ويجب الإبلاغ عنها للإدارة"] },
+      { id: 14, q: "ما التصرف الصحيح إذا شاهدت مخالفة واضحة؟", a: ["ترد بالمخالفة نفسها", "توثقها وتقدم بلاغاً للإدارة", "تنشر بيانات اللاعب"] },
+      { id: 15, q: "هل يجب احترام حدود الشخصية وعدم خلط الخلافات الشخصية مع RP؟", a: ["نعم", "لا", "حسب اللاعب"] },
+      { id: 16, q: "ما المقصود بـ NLR (إن كان معمولاً به في قوانين المدينة)؟", a: ["قاعدة عدم العودة للموقف/الموقع بعد الإقصاء وفق مدة وقواعد السيرفر", "قانون المرور", "نظام الوظائف"] },
+      { id: 17, q: "هل يسمح باستعمال برامج الغش أو التعديلات التي تمنح أفضلية؟", a: ["نعم في السر", "لا، يمنع استعمالها", "فقط خارج المدينة"] },
+      { id: 18, q: "إذا لم تفهم قانوناً معيناً، ماذا تفعل؟", a: ["تخمن وتخالف", "تسأل الإدارة أو تقرأ القانون قبل التصرف", "تطلب من لاعب آخر مخالفة القانون"] },
+      { id: 19, q: "ما أهم أساس في لعب Roleplay؟", a: ["الفوز بأي طريقة", "إزعاج اللاعبين", "بناء شخصية واقعية واحترام متعة الجميع والقوانين"] }
+    ];
+
+    function shuffle(array) {
+      let cur = array.length, rIndex;
+      const copy = [...array];
+      while (cur != 0) {
+        rIndex = Math.floor(Math.random() * cur);
+        cur--;
+        [copy[cur], copy[rIndex]] = [copy[rIndex], copy[cur]];
+      }
+      return copy;
+    }
+
+    const shuffledQuestions = shuffle(QUESTIONS);
+
+    const container = document.getElementById('questionsContainer');
+    shuffledQuestions.forEach((item, index) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question-card';
+      
+      let optionsHtml = '';
+      item.a.forEach((opt, optIdx) => {
+        optionsHtml += `
+          <label class="option-label">
+            <input type="radio" name="question_${item.id}" value="${optIdx}" required>
+            ${opt}
+          </label>
+        `;
+      });
+
+      qDiv.innerHTML = `
+        <div class="question-title">${index + 1}. ${item.q}</div>
+        <div class="options">${optionsHtml}</div>
+      `;
+      container.appendChild(qDiv);
+    });
+
+    document.getElementById('appForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      const alertBox = document.getElementById('alertBox');
+      
+      const discordName = document.getElementById('discordName').value.trim();
+      const gameName = document.getElementById('gameName').value.trim();
+      
+      const answers = new Array(QUESTIONS.length);
+      for(let i = 0; i < QUESTIONS.length; i++) {
+        const selected = document.querySelector(`input[name="question_${i}"]:checked`);
+        if(!selected) {
+          alertBox.className = 'alert alert-error';
+          alertBox.innerText = 'يرجى الإجابة عن جميع الأسئلة قبل الإرسال.';
+          alertBox.style.display = 'block';
+          return;
+        }
+        answers[i] = parseInt(selected.value);
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'جاري إرسال الطلب...';
+
+      try {
+        const res = await fetch('/api/applications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discordName, gameName, answers })
+        });
+        const data = await res.json();
+        if(res.ok) {
+          alertBox.className = 'alert alert-success';
+          alertBox.innerText = `${data.message} (رقم الطلب: ${data.applicationId})`;
+          alertBox.style.display = 'block';
+          document.getElementById('appForm').reset();
+        } else {
+          throw new Error(data.error || 'حدث خطأ غير متوقع');
+        }
+      } catch (err) {
+        alertBox.className = 'alert alert-error';
+        alertBox.innerText = err.message;
+        alertBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'إرسال طلب التفعيل';
+      }
+    });
+  </script>
+</body>
+</html>
