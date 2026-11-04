@@ -1,94 +1,86 @@
 const express = require('express');
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
 const app = express();
 
-// حل مشكلة X-Forwarded-For ومكتبة express-rate-limit على Render
+// حل مشكلة الـ X-Forwarded-For على Render
 app.set('trust proxy', 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// قراءة ملف الواجهة الرئيسي index.html
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
 // إعداد بوت ديسكورد
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
-    ]
-});
-
-const ACCEPT_CHANNEL_ID = process.env.ACCEPT_CHANNEL_ID;
-
-// صفحة استقبال التقديم من الموقع
-app.post('/submit', async (req, res) => {
-    try {
-        const { username, age, experience } = req.body;
-        
-        const channel = await client.channels.fetch(ACCEPT_CHANNEL_ID);
-        if (!channel) {
-            return res.status(400).json({ success: false, message: 'لم يتم العثور على قناة قبول التفعيل!' });
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('📝 تقديم تفعيل جديد - NORTH CITY')
-            .setColor('#8B0000')
-            .addFields(
-                { name: '👤 اسم اللاعب', value: username || 'غير محدد', inline: true },
-                { name: '🎂 العمر', value: age || 'غير محدد', inline: true },
-                { name: '💼 الخبرة / الخلفية', value: experience || 'لا توجد' }
-            )
-            .setFooter({ text: `Submitted by ${username || 'User'} • NORTH CITY System` })
-            .setTimestamp();
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('accept_app')
-                .setLabel('Accept')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji('✅'),
-            new ButtonBuilder()
-                .setCustomId('reject_app')
-                .setLabel('Reject')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('❌')
-        );
-
-        await channel.send({ embeds: [embed], components: [row] });
-
-        res.status(200).json({ success: true, message: 'تم إرسال التقديم بنجاح إلى ديسكورد!' });
-    } catch (error) {
-        console.error('Error submitting application:', error);
-        res.status(500).json({ success: false, message: 'حدث خطأ أثناء إرسال التقديم.' });
-    }
-});
-
-// التفاعل مع الأزرار
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
-
-    if (interaction.customId === 'accept_app') {
-        await interaction.reply({ 
-            content: `✅ **تم قبول التقديم بنجاح بواسطة:** ${interaction.user.tag}`, 
-            ephemeral: false 
-        });
-    } else if (interaction.customId === 'reject_app') {
-        await interaction.reply({ 
-            content: `❌ **تم رفض التقديم بواسطة:** ${interaction.user.tag}`, 
-            ephemeral: false 
-        });
-    }
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages
+  ]
 });
 
 client.once('ready', () => {
-    console.log(`Bot logged in as ${client.user.tag}!`);
+  console.log(`Logged in as ${client.user.tag}!`);
 });
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+// استقبال طلبات التفعيل من الموقع وإرسالها للديسكورد
+app.post('/api/applications', async (req, res) => {
+  try {
+    const { discordName, gameName, answers } = req.body;
 
+    if (!discordName || !gameName || !answers) {
+      return res.status(400).json({ error: 'يرجى تعبئة كافة الحقول المطلوبة.' });
+    }
+
+    const channelId = process.env.DISCORD_CHANNEL_ID;
+    if (!channelId) {
+      return res.status(500).json({ error: 'معرف قناة ديسكورد غير مضبوط في السيرفر.' });
+    }
+
+    const channel = await client.channels.fetch(channelId);
+    if (!channel) {
+      return res.status(500).json({ error: 'لم يتم العثور على قناة ديسكورد المحددة.' });
+    }
+
+    const applicationId = Math.floor(100000 + Math.random() * 900000);
+
+    const embed = new EmbedBuilder()
+      .setTitle('📋 طلب تفعيل جديد - North City RP')
+      .setColor(0x3b82f6)
+      .addFields(
+        { name: 'رقم الطلب', value: `#${applicationId}`, inline: true },
+        { name: 'حساب Discord', value: discordName, inline: true },
+        { name: 'اسم الشخصية (IC)', value: gameName, inline: true },
+        { name: 'عدد الإجابات', value: `${answers.length} سؤالاً`, inline: false }
+      )
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+
+    res.status(200).json({ 
+      message: 'تم إرسال طلب التفعيل بنجاح إلى الإدارة!', 
+      applicationId: applicationId 
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'حدث خطأ أثناء معالجة الطلب في السيرفر.' });
+  }
+});
+
+const TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
+
+if (TOKEN) {
+  client.login(TOKEN).catch(err => console.error('Discord login error:', err));
+}
+
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
