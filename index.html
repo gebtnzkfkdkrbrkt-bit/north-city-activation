@@ -1,0 +1,148 @@
+require("dotenv").config();
+const express = require("express");
+const rateLimit = require("express-rate-limit");
+const path = require("path");
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+
+const app = express();
+
+// حل مشكلة البروكسي على استضافة Render
+app.set('trust proxy', 1);
+
+app.use(express.json({ limit: "30kb" }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// حماية الأردن / طلبات التفعيل من التكرار السريع
+const limiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 دقائق
+    max: 5, // الحد الأقصى 5 محاولات لكل آي بي
+    standardHeaders: true,
+    legacyHeaders: false
+});
+app.use("/api/applications", limiter);
+
+// إعداد بوت ديسكورد
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ]
+});
+
+const ACCEPT_CHANNEL_ID = process.env.ACCEPT_CHANNEL_ID;
+
+// قاعدة بيانات الأسئلة للتحقق من الإجابات في الباك إند
+const QUESTIONS = [
+    { id: 0, correct: 0 },
+    { id: 1, correct: 1 },
+    { id: 2, correct: 0 },
+    { id: 3, correct: 1 },
+    { id: 4, correct: 0 },
+    { id: 5, correct: 2 },
+    { id: 6, correct: 1 },
+    { id: 7, correct: 2 },
+    { id: 8, correct: 0 },
+    { id: 9, correct: 1 },
+    { id: 10, correct: 3 }, // تأكدنا من المطابقة
+    { id: 11, correct: 0 },
+    { id: 12, correct: 1 },
+    { id: 13, correct: 2 },
+    { id: 14, correct: 1 },
+    { id: 15, correct: 0 },
+    { id: 16, correct: 0 },
+    { id: 17, correct: 1 },
+    { id: 18, correct: 1 },
+    { id: 19, correct: 2 }
+];
+
+// استقبال الطلب من الواجهة الجديدة
+app.post('/api/applications', async (req, res) => {
+    try {
+        const { discordName, gameName, answers } = req.body;
+
+        if (!discordName || !gameName || !Array.isArray(answers)) {
+            return res.status(400).json({ error: 'الرجاء تعبئة جميع الحقول بشكل صحيح.' });
+        }
+
+        // تصحيح الأجوبة تلقائياً
+        let score = 0;
+        answers.forEach((ans, idx) => {
+            if (ans === 0) { // بناءً على ترتيب الأسئلة في الواجهة، الخيار الأول (0) هو الإجابة الصحيحة
+                score++;
+            }
+        });
+
+        const totalQuestions = QUESTIONS.length;
+        const isPassed = score >= 15; // شرط النجاح: 15 إجابة صحيحة من 20
+
+        const channel = await client.channels.fetch(ACCEPT_CHANNEL_ID);
+        if (!channel) {
+            return res.status(500).json({ error: 'لم يتم العثور على قناة الاستقبال في ديسكورد.' });
+        }
+
+        const applicationId = Math.floor(100000 + Math.random() * 900000);
+
+        const embed = new EmbedBuilder()
+            .setTitle('📝 طلب تفعيل جديد - NORTH CITY RP')
+            .setColor(isPassed ? '#10b981' : '#ef4444')
+            .addFields(
+                { name: '👤 حساب ديسكورد', value: discordName, inline: true },
+                { name: '🎮 اسم الشخصية (IC)', value: gameName, inline: true },
+                { name: '📊 النتيجة والاختبار', value: `الدرجة: **${score} / ${totalQuestions}**\nالحالة: ${isPassed ? '🟢 اجتاز الاختبار' : '🔴 راسب في الاختبار'}`, inline: false }
+            )
+            .setFooter({ text: `Application ID: #${applicationId}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`accept_${applicationId}`)
+                .setLabel('قبول (Accept)')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('✅'),
+            new ButtonBuilder()
+                .setCustomId(`reject_${applicationId}`)
+                .setLabel('رفض (Reject)')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('❌')
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+
+        res.status(200).json({ 
+            message: isPassed ? 'تم إرسال طلبك بنجاح وبانتظار مراجعة الإدارة.' : 'لقد أجريت الاختبار ولكن لم تحقق درجة النجاح المطلوبة.', 
+            applicationId: applicationId 
+        });
+
+    } catch (error) {
+        console.error('Error handling application:', error);
+        res.status(500).json({ error: 'حدث خطأ داخلي في الخادم.' });
+    }
+});
+
+// التفاعل مع الأزرار في ديسكورد
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId.startsWith('accept_')) {
+        await interaction.update({ 
+            content: `✅ **تم قبول الطلب بواسطة:** ${interaction.user.tag}`, 
+            components: [] 
+        });
+    } else if (interaction.customId.startsWith('reject_')) {
+        await interaction.update({ 
+            content: `❌ **تم رفض الطلب بواسطة:** ${interaction.user.tag}`, 
+            components: [] 
+        });
+    }
+});
+
+client.once('ready', () => {
+    console.log(`Bot logged in as ${client.user.tag}!`);
+});
+
+client.login(process.env.DISCORD_BOT_TOKEN);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
